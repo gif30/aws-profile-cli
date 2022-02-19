@@ -6,12 +6,15 @@ import json
 from subprocess import check_output, CalledProcessError
 import re
 import sys
+import traceback
+
 
 
 def get_profiles() -> list[str]:
     profiles_cmd = "aws configure list-profiles"
     out = check_output(profiles_cmd, shell=True).decode(sys.stdout.encoding)
     profiles = out.split()
+    profiles.remove('default')
     return profiles
 
 
@@ -49,6 +52,7 @@ def switch(profile: str = typer.Argument(default=...,autocompletion=completion_p
 
         except Exception as e:
             typer.echo('Failed to set profile: ' + str(e), err=True)
+            traceback.print_exc()
             exit(1)
         typer.echo('funciono todo piola')
         print_aws_get_caller_identity()
@@ -73,8 +77,10 @@ def get_profile_key_endings(profile):
         raise ValueError(t)
     
     # filter command
-    regex_access_key = re.compile(r"(?:access_key\ +\*+)([A-Za-z0-9]+)")
-    regex_secret_key = re.compile(r"(?:secret_key\ +\*+)([A-Za-z0-9]+)")
+    #regex_access_key = re.compile(r"(?:access_key\ +\*+)([A-Za-z0-9]+)")
+    regex_access_key = re.compile(r"(?:access_key\ +\*+)(\S+)")
+    #regex_secret_key = re.compile(r"(?:secret_key\ +\*+)([A-Za-z0-9]+)")
+    regex_secret_key = re.compile(r"(?:secret_key\ +\*+)(\S+)")
     access_key_ending = regex_access_key.search(str(output)).group(1)
     secret_key_ending = regex_secret_key.search(str(output)).group(1)
     # print(access_key_ending)
@@ -130,8 +136,6 @@ def set_default_profile_credentials(aws_access_key, aws_secret_key, aws_session_
 
 def set_aws_default_profile(profile):
 
-    typer.echo('wtf')
-
     if aws_profile_is_sso(profile):
         creds = get_profile_credentials_from_cache(profile)
         aws_profile = profile
@@ -163,7 +167,7 @@ def print_actual_profile():
     out = check_output(profiles_cmd, shell=True).decode(sys.stdout.encoding)
     typer.echo(out)
 
-def aws_profile_is_sso(profile) -> bool:
+def aws_profile_is_sso2(profile) -> bool:
 
     config_path = os.path.join(
         os.path.expanduser('~'), '.aws/config')
@@ -171,7 +175,7 @@ def aws_profile_is_sso(profile) -> bool:
     config.read(config_path)
     # print(config.sections())
 
-    if config[profile]['sso_start_url']:
+    if 'sso_start_url' in config["profile " + profile]:
         return True
     else:
         return False
@@ -187,3 +191,26 @@ def get_profile_credentials_from_credsfile(profile):
     creds = config[profile]
     creds['profile'] = profile
     return creds
+
+
+def aws_profile_is_sso(profile) -> bool:
+
+    command = "aws configure list --profile {profile}".format(profile=profile)
+    
+    try:
+        output = check_output(command, shell=True)
+        t = 0, output
+    except CalledProcessError as e:
+        t = e.returncode, e.message
+        #print(t)
+        raise ValueError(t)
+    
+    # filter command
+    regex_access_key = re.compile(r"(?:secret_key\ +\*+\S+\ +)(\S+)")
+    #regex_secret_key = re.compile(r"(?:secret_key\ +\*+[A-Za-z0-9]+\ +)([A-Za-z0-9]+)")
+    profile_type = regex_access_key.search(str(output)).group(1)
+    #secret_key_ending = regex_secret_key.search(str(output)).group(1)
+    if profile_type == 'sso':
+        return True
+    else:
+        return False
