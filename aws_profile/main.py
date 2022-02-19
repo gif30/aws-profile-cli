@@ -45,8 +45,9 @@ def switch(profile: str = typer.Argument(default=...,autocompletion=completion_p
     if profile in profiles:
         typer.echo(f"Setting {profile} as default")
         try:
-            set_aws_default(profile)
-        except BaseException as e:
+            set_aws_default_profile(profile)
+
+        except Exception as e:
             typer.echo('Failed to set profile: ' + str(e), err=True)
             exit(1)
         typer.echo('funciono todo piola')
@@ -117,23 +118,36 @@ def set_default_profile_credentials(aws_access_key, aws_secret_key, aws_session_
     config['default'] = {
         'aws_access_key_id': aws_access_key,
         'aws_secret_access_key': aws_secret_key,
-        'aws_session_token': aws_session_token,
-        'expiry_date': aws_expiration,
         'profile': aws_profile
     }
+    if aws_session_token:
+        config['default']['aws_session_token'] = aws_session_token
+    if aws_expiration:
+        config['default']['expiry_date'] = aws_expiration
     with open(credentials_path, 'w') as configfile:
         config.write(configfile)
 
 
-def set_aws_default(profile):
+def set_aws_default_profile(profile):
 
-    creds = get_profile_credentials_from_cache(profile)
+    typer.echo('wtf')
 
-    aws_profile = profile
-    aws_access_key = creds["AccessKeyId"]
-    aws_secret_key = creds["SecretAccessKey"]
-    aws_session_token = creds["SessionToken"]
-    aws_expiration = creds["Expiration"]
+    if aws_profile_is_sso(profile):
+        creds = get_profile_credentials_from_cache(profile)
+        aws_profile = profile
+        aws_access_key = creds["AccessKeyId"]
+        aws_secret_key = creds["SecretAccessKey"]
+        aws_session_token = creds["SessionToken"]
+        aws_expiration = creds["Expiration"]
+
+
+    else: 
+        creds = get_profile_credentials_from_credsfile(profile)
+        aws_profile = profile
+        aws_access_key = creds["aws_access_key_id"]
+        aws_secret_key = creds["aws_secret_access_key"]
+        aws_session_token = None
+        aws_expiration = None
 
 
     # set credentials file
@@ -149,3 +163,27 @@ def print_actual_profile():
     out = check_output(profiles_cmd, shell=True).decode(sys.stdout.encoding)
     typer.echo(out)
 
+def aws_profile_is_sso(profile) -> bool:
+
+    config_path = os.path.join(
+        os.path.expanduser('~'), '.aws/config')
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    # print(config.sections())
+
+    if config[profile]['sso_start_url']:
+        return True
+    else:
+        return False
+
+def get_profile_credentials_from_credsfile(profile):
+    credentials_path = os.path.join(
+        os.path.expanduser('~'), '.aws/credentials')
+    config = configparser.ConfigParser()
+    config.read(credentials_path)
+    # print(config.sections())
+    
+
+    creds = config[profile]
+    creds['profile'] = profile
+    return creds
