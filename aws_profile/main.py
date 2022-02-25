@@ -52,7 +52,8 @@ def switch(profile: str = typer.Argument(default=...,autocompletion=completion_p
 
         except Exception as e:
             typer.echo('Failed to set profile: ' + str(e), err=True)
-            traceback.print_exc()
+            # TODO: add logging types
+            #traceback.print_exc()
             exit(1)
         typer.echo('funciono todo piola')
         print_aws_get_caller_identity()
