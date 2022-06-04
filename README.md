@@ -1,6 +1,10 @@
 # aws profile tools
 to switch easily
 
+## Requirements
+python 3.10 or above
+python -m pip install typer-cli
+python -m pip install poetry
 
 ## instalation
 ### Easy install:
